@@ -6,6 +6,7 @@ use App\Models\Report;
 use Gate;
 use Illuminate\Http\Request;
 use App\Http\Requests\StoreReportRequest;
+use App\Http\Resources\ReportResource;
 
 
 class ReportController extends Controller
@@ -34,15 +35,11 @@ public function store(StoreReportRequest $request)
     ]);
 
 
-    return response()->json([
-        'message' => 'Report submitted successfully',
-        'report'  => $report
-    ], 201);
+    return  ReportResource::collection([$report]);
 }
 public function show(Report $report)
 {
     Gate::authorize('view', $report);
 
-    return response()->json($report->load('user'));
-}
+return new ReportResource($report->load('user'));}
 }
