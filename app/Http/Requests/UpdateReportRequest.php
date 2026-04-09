@@ -9,7 +9,6 @@ class UpdateReportRequest extends FormRequest
     public function authorize(): bool
     {
 
-    // We check if the authenticated user "can" update this specific report
     return $this->user()->can('update', $this->route('report'));
 
     }

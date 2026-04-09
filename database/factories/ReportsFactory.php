@@ -18,12 +18,11 @@ class ReportsFactory extends Factory
     public function definition(): array
     {
         return [
-              'title' => fake()->sentence(4), // Generates a 4-word title
+            'title' => fake()->sentence(4),
             'severity' => fake()->randomElement(['Low', 'Medium', 'High', 'Critical']),
             'description' => fake()->paragraph(3),
             'status' => 'Open',
-            // No need to define user_id here; we'll handle that in the seeder!
-            //
+            
         ];
     }
 }
