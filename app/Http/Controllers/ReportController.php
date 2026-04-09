@@ -13,6 +13,7 @@ class ReportController extends Controller
 {
     public function index(Request $request)
 {
+    
     $reports = Report::with('user')
         ->latest()
         // 1. Search filter: Checks title or description

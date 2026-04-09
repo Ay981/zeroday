@@ -19,7 +19,7 @@ class ReportPolicy
 
     public function view(User $user, Report $report): bool
     {
-        return $this->isOwner($user, $report);
+        return true;
     }
 
     public function viewAny(User $_user): bool

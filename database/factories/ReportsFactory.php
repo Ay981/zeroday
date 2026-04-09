@@ -2,14 +2,16 @@
 
 namespace Database\Factories;
 
-use App\Models\Model;
+use App\Models\Report;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<Model>
+ * @extends Factory<Report>
  */
 class ReportsFactory extends Factory
 {
+    protected $model = Report::class;
+
     /**
      * Define the model's default state.
      *
@@ -20,9 +22,10 @@ class ReportsFactory extends Factory
         return [
             'title' => fake()->sentence(4),
             'severity' => fake()->randomElement(['Low', 'Medium', 'High', 'Critical']),
+
             'description' => fake()->paragraph(3),
             'status' => 'Open',
-            
+
         ];
     }
 }

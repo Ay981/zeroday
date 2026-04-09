@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
@@ -9,14 +10,15 @@ class ReportResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id'          => $this->id,
-            'title'       => $this->title,
-            'severity'    => $this->severity,
+            'id' => $this->id,
+            'title' => $this->title,
+            'slug' => $this->slug, // Add this
+            'severity' => $this->severity,
             'description' => $this->description,
-            'status'      => $this->status,
-            'created_at'  => $this->created_at,
+            'status' => $this->status,
+            'created_at' => $this->created_at,
             'submitted_by' => [
-                'id'   => $this->user->id,
+                'id' => $this->user->id,
                 'name' => $this->user->name,
             ],
         ];
