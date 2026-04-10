@@ -15,7 +15,7 @@ class ReportController extends Controller
     public function index(Request $request)
     {
 
-        $reports = Report::with('user')
+        $reports = Report::with(['user', 'program'])
             ->latest()
             // 1. Search filter: Checks title or description
             ->when($request->search, function ($query, $search) {
@@ -42,7 +42,7 @@ class ReportController extends Controller
         $report = $service->createReport($request->validated());
 
         // 3. Return Response
-        return new ReportResource($report->load('user'));
+        return new ReportResource($report->load(['user', 'program']));
     }
 
     public function update(UpdateReportRequest $request, Report $report, ReportService $service)
@@ -51,14 +51,14 @@ class ReportController extends Controller
 
         $report = $service->updateReport($report, $request->validated());
 
-        return new ReportResource($report->load('user'));
+        return new ReportResource($report->load(['user', 'program']));
     }
 
     public function show(Report $report)
     {
         Gate::authorize('view', $report);
 
-        return new ReportResource($report->load('user'));
+        return new ReportResource($report->load(['user', 'program']));
     }
 
     public function destroy(Report $report)

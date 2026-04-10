@@ -7,20 +7,23 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class ReportResource extends JsonResource
 {
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(Request $request): array
     {
         return [
             'id' => $this->id,
             'title' => $this->title,
-            'slug' => $this->slug, // Add this
+            'slug' => $this->slug,
+            'program_id' => $this->program_id,
+            'program' => new ProgramResource($this->whenLoaded('program')),
             'severity' => $this->severity,
             'description' => $this->description,
             'status' => $this->status,
             'created_at' => $this->created_at,
-            'submitted_by' => [
-                'id' => $this->user->id,
-                'name' => $this->user->name,
-            ],
+            'submitted_by' => new UserResource($this->whenLoaded('user')),
+
         ];
     }
 }

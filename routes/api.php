@@ -3,7 +3,9 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\UserController;
+use App\Http\Resources\ProgramResource;
 use App\Http\Resources\UserResource;
+use App\Models\Program;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -17,6 +19,10 @@ Route::get('reports/{report}', [ReportController::class, 'show'])->middleware('a
 Route::post('/reports', [ReportController::class, 'store'])->middleware('auth:sanctum')->name('reports.store');
 Route::patch('/reports/{report}', [ReportController::class, 'update'])->middleware('auth:sanctum')->name('reports.update');
 Route::delete('/reports/{report}', [ReportController::class, 'destroy'])->middleware('auth:sanctum')->name('reports.destroy');
+
+Route::get('/programs', function () {
+    return ProgramResource::collection(Program::all());
+});
 
 Route::get('/user', function (Request $request) {
     return new UserResource($request->user());

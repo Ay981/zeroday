@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Program;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -12,14 +13,24 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Create your specific Test User with 50 reports
-        User::factory()->hasReports(50)->create([
-            'name' => 'Cyber Researcher',
-            'email' => 'hacker@zeroday.com',
-            'password' => bcrypt('password123'), // Good to set a password you know
+        // Create 3 Programs
+        $tesla = Program::create([
+            'name' => 'Tesla Security',
+            'slug' => 'tesla-security',
+            'description' => 'Help us secure our fleet of autonomous vehicles.',
+            'bounty_multiplier' => 2.50, // High reward
         ]);
 
-        // 2. Create 10 more random users, each with 50 reports (500 total)
-        User::factory(10)->hasReports(50)->create();
+        $nasa = Program::create([
+            'name' => 'NASA JPL',
+            'slug' => 'nasa-jpl',
+            'description' => 'Security for the stars.',
+            'bounty_multiplier' => 5.00, // Elite reward
+        ]);
+
+        // Update your Report Factory logic to pick a random program_id
+        User::factory(10)->hasReports(20, [
+            'program_id' => $tesla->id,
+        ])->create();
     }
 }

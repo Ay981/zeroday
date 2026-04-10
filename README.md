@@ -21,6 +21,136 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
+## ZeroDay API Notes
+
+This project exposes an authenticated bug-reporting API using Laravel Sanctum.
+
+### Auth
+
+- `POST /api/register` registers a user and returns a token.
+- `POST /api/login` returns a Sanctum token.
+- `POST /api/logout` revokes the current token (requires `auth:sanctum`).
+
+### Core Endpoints
+
+- `GET /api/user` returns the authenticated user via `UserResource`.
+- `GET /api/user/stats` returns aggregate report stats for the authenticated user.
+- `GET /api/reports` lists reports.
+- `POST /api/reports` creates a report.
+- `GET /api/reports/{report}` returns a single report.
+- `PATCH /api/reports/{report}` updates a report.
+- `DELETE /api/reports/{report}` deletes a report.
+- `GET /api/programs` returns available programs.
+
+### API Response Shape
+
+Resources use the standard `data` wrapper.
+
+Example report response:
+
+```json
+{
+	"data": {
+		"id": 195,
+		"title": "...",
+		"slug": "...",
+		"program_id": 1,
+		"program": {
+			"id": 1,
+			"name": "Tesla Security",
+			"multiplier": 2.5,
+			"description": "..."
+		},
+		"severity": "Low",
+		"description": "...",
+		"status": "Open",
+		"created_at": "2026-04-10T15:10:17.000000Z",
+		"submitted_by": {
+			"id": 10,
+			"name": "Mrs. Elvera Morar",
+			"email": "hacker@example.com",
+			"reputation": 100,
+			"level": 1
+		}
+	}
+}
+```
+
+## Frontend Integration (`/zeroday-frontend`)
+
+If your frontend app lives in `/zeroday-frontend`, configure it to call this API with a bearer token and handle Laravel's `data` wrapper.
+
+### Base API Setup
+
+- API base URL: `http://localhost:8000/api`
+- Auth header: `Authorization: Bearer <token>`
+
+Example Axios client:
+
+```ts
+import axios from 'axios';
+
+export const apiClient = axios.create({
+	baseURL: 'http://localhost:8000/api',
+});
+
+apiClient.interceptors.request.use((config) => {
+	const token = localStorage.getItem('token');
+
+	if (token) {
+		config.headers.Authorization = `Bearer ${token}`;
+	}
+
+	return config;
+});
+```
+
+### Reading Wrapped Resources
+
+For endpoints that return Laravel Resources, read from `response.data.data`.
+
+```ts
+const res = await apiClient.get('/user');
+const user = res.data.data;
+```
+
+```ts
+const res = await apiClient.get('/reports');
+const reports = res.data.data;
+```
+
+### Safe Fallback for Mixed Payloads
+
+If an endpoint might return either wrapped or flat JSON:
+
+```ts
+const payload = response.data?.data ?? response.data;
+```
+
+### Level Display Logic
+
+Backend now returns `level` on `/api/user`. If missing in older payloads, derive from reputation:
+
+```ts
+const level = user.level ?? Math.floor(Number(user.reputation ?? 0) / 100);
+```
+
+## Security Hardening Checklist
+
+The following items should be addressed before production deployment:
+
+- Restrict report visibility in `ReportPolicy` (`view` and `viewAny` are currently permissive).
+- Avoid exposing reporter email in report payloads unless explicitly required.
+- Add rate limiting to `POST /api/login` to reduce brute-force risk.
+- Set a non-null Sanctum token expiration in `config/sanctum.php`.
+- Review whether `GET /api/programs` should remain public.
+
+Recommended command for clean local reset:
+
+```bash
+php artisan migrate:fresh --seed
+```
+
 ## Learning Laravel
 
 Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.

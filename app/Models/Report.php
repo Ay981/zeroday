@@ -17,6 +17,7 @@ class Report extends Model
         'severity',
         'description',
         'status',
+        'program_id',
         'user_id',
     ];
 
@@ -42,5 +43,10 @@ class Report extends Model
         static::creating(function (Report $report): void {
             $report->slug = Str::slug($report->title).'-'.Str::random(5);
         });
+    }
+
+    public function program(): BelongsTo
+    {
+        return $this->belongsTo(Program::class);
     }
 }
