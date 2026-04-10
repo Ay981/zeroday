@@ -139,15 +139,7 @@ const level = user.level ?? Math.floor(Number(user.reputation ?? 0) / 100);
 
 - DeepWiki: [https://deepwiki.com/Ay981/zeroday](https://deepwiki.com/Ay981/zeroday)
 
-## Security Hardening Checklist
 
-The following items should be addressed before production deployment:
-
-- Restrict report visibility in `ReportPolicy` (`view` and `viewAny` are currently permissive).
-- Avoid exposing reporter email in report payloads unless explicitly required.
-- Add rate limiting to `POST /api/login` to reduce brute-force risk.
-- Set a non-null Sanctum token expiration in `config/sanctum.php`.
-- Review whether `GET /api/programs` should remain public.
 
 Recommended command for clean local reset:
 
