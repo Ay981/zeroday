@@ -135,6 +135,10 @@ Backend now returns `level` on `/api/user`. If missing in older payloads, derive
 const level = user.level ?? Math.floor(Number(user.reputation ?? 0) / 100);
 ```
 
+## Project Docs
+
+- DeepWiki: [https://deepwiki.com/Ay981/zeroday](https://deepwiki.com/Ay981/zeroday)
+
 ## Security Hardening Checklist
 
 The following items should be addressed before production deployment:
