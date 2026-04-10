@@ -1,0 +1,14 @@
+<?php
+
+namespace {{ namespace }};
+
+class {{ class }}
+{
+    /**
+     * Business logic for {{ class }}
+     */
+    public function handle()
+    {
+        //
+    }
+}

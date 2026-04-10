@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\ReportResource;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -30,8 +31,26 @@ class UserController extends Controller
             'email' => $request->email,
             'password' => bcrypt($request->password),
         ]);
+
         return response()->json($user, 201);
         //
+    }
+
+    public function stats(Request $request)
+    {
+        $user = $request->user();
+
+        // Optimized Database Aggregation
+        return response()->json([
+            'stats' => [
+                'total_reports' => $user->reports()->count(),
+                'critical_count' => $user->reports()->where('severity', 'Critical')->count(),
+                'open_bugs' => $user->reports()->where('status', 'Open')->count(),
+            ],
+            'recent_activity' => ReportResource::collection(
+                $user->reports()->latest()->take(5)->get()
+            ),
+        ]);
     }
 
     /**
