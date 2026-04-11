@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\ReportsFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -49,4 +50,17 @@ class Report extends Model
     {
         return $this->belongsTo(Program::class);
     }
+
+    public function scopeFilter(Builder $query, array $filters): void
+{
+    $query->when($filters['search'] ?? null, function ($query, $search) {
+        // Use the GIN index by switching from LIKE to PostgreSQL Full-Text syntax
+        $query->whereRaw(
+            "to_tsvector('english', title || ' ' || description) @@ plainto_tsquery('english', ?)", 
+            [$search]
+        );
+    })->when($filters['severity'] ?? null, function ($query, $severity) {
+        $query->where('severity', $severity);
+    });
+}
 }

@@ -55,6 +55,14 @@ class ReportService
         return $report->refresh();
     }
 
+    public function listReports(array $filters, int $perPage = 15)
+    {
+        return Report::with(['user', 'program'])
+            ->latest()
+            ->filter($filters) // Use the scope we just created
+            ->paginate($perPage);
+    }
+
     public function transitionStatus(Report $report, string $newStatus): Report
     {
         // Business Rule: You can't un-patch a bug once it's closed

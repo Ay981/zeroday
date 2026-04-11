@@ -14,6 +14,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Create 3 Programs
+
         $tesla = Program::create([
             'name' => 'Tesla Security',
             'slug' => 'tesla-security',
@@ -26,6 +27,12 @@ class DatabaseSeeder extends Seeder
             'slug' => 'nasa-jpl',
             'description' => 'Security for the stars.',
             'bounty_multiplier' => 5.00, // Elite reward
+        ]);
+        $google = Program::create([
+            'name' => 'Google',
+            'slug' => 'google',
+            'description' => 'Secure our search engine and cloud services.',
+            'bounty_multiplier' => 1.50, // Standard reward
         ]);
 
         // Update your Report Factory logic to pick a random program_id

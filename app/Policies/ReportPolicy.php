@@ -17,7 +17,7 @@ class ReportPolicy
         return true;
     }
 
-    public function view(User $user, Report $report): bool
+    public function view(User $_user, Report $_report): bool
     {
         return true;
     }
@@ -34,6 +34,6 @@ class ReportPolicy
 
     public function delete(User $user, Report $report): bool
     {
-        return $this->isOwner($user, $report);
+        return $user->role === 'admin' || $this->isOwner($user, $report);
     }
 }

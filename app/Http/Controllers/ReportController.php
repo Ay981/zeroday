@@ -12,23 +12,9 @@ use Illuminate\Http\Request;
 
 class ReportController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, ReportService $service)
     {
-
-        $reports = Report::with(['user', 'program'])
-            ->latest()
-            // 1. Search filter: Checks title or description
-            ->when($request->search, function ($query, $search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('title', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%");
-                });
-            })
-            // 2. Severity filter: Exact match
-            ->when($request->severity, function ($query, $severity) {
-                $query->where('severity', $severity);
-            })
-            ->paginate(15);
+        $reports = $service->listReports($request->all());
 
         return ReportResource::collection($reports);
     }
