@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Program;
 use App\Models\Report;
+use App\Models\User;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\Auth;
 
 class ReportService
@@ -50,16 +52,37 @@ class ReportService
      */
     public function updateReport(Report $report, array $data): Report
     {
-        $report->update($data);
+        if (isset($data['status'])) {
+            $report = $this->transitionStatus($report, $data['status']);
+            unset($data['status']);
+        }
+
+        if (! empty($data)) {
+            $report->update($data);
+        }
 
         return $report->refresh();
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     */
+    public function listReports(array $filters, User $user, int $perPage = 15)
+    {
+        return Report::with(['user', 'program'])
+            ->when($user->role !== 'admin', fn ($q) => $q->where('user_id', $user->id))
+            ->latest()
+            ->filter($filters)
+            ->paginate($perPage);
     }
 
     public function transitionStatus(Report $report, string $newStatus): Report
     {
         // Business Rule: You can't un-patch a bug once it's closed
         if ($report->status === 'Patched' && $newStatus === 'Open') {
-            throw new \Exception('Cannot re-open a patched vulnerability.');
+            throw new HttpResponseException(
+                response()->json(['message' => 'Cannot re-open a patched vulnerability.'], 422)
+            );
         }
 
         $report->update(['status' => $newStatus]);

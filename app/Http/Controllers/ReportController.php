@@ -7,28 +7,17 @@ use App\Http\Requests\UpdateReportRequest;
 use App\Http\Resources\ReportResource;
 use App\Models\Report;
 use App\Services\ReportService;
-use Gate;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 
 class ReportController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, ReportService $service)
     {
+        Gate::authorize('viewAny', Report::class);
 
-        $reports = Report::with(['user', 'program'])
-            ->latest()
-            // 1. Search filter: Checks title or description
-            ->when($request->search, function ($query, $search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('title', 'like', "%{$search}%")
-                        ->orWhere('description', 'like', "%{$search}%");
-                });
-            })
-            // 2. Severity filter: Exact match
-            ->when($request->severity, function ($query, $severity) {
-                $query->where('severity', $severity);
-            })
-            ->paginate(15);
+        $filters = $request->only(['search', 'severity']);
+        $reports = $service->listReports($filters, $request->user());
 
         return ReportResource::collection($reports);
     }

@@ -34,6 +34,6 @@ class ReportPolicy
 
     public function delete(User $user, Report $report): bool
     {
-        return $this->isOwner($user, $report);
+        return $user->role === 'admin' || $this->isOwner($user, $report);
     }
 }

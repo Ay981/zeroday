@@ -9,7 +9,7 @@ class UpdateReportRequest extends FormRequest
     public function authorize(): bool
     {
 
-    return $this->user()->can('update', $this->route('report'));
+        return $this->user()->can('update', $this->route('report'));
 
     }
 
@@ -19,6 +19,7 @@ class UpdateReportRequest extends FormRequest
             'title' => ['sometimes', 'string', 'min:10', 'max:255'],
             'severity' => ['sometimes', 'in:Low,Medium,High,Critical'],
             'description' => ['sometimes', 'string', 'min:20'],
+            'status' => ['sometimes', 'in:Open,In Progress,Patched'],
         ];
     }
 }
