@@ -97,7 +97,6 @@ it('prevents an admin from updating another users report', function (): void {
     ])->assertForbidden();
 });
 
-
 it('awards 100 points for a critical vulnerability', function () {
     $user = User::factory()->create(['reputation' => 0]);
     $program = testProgram(1.0);
@@ -106,11 +105,10 @@ it('awards 100 points for a critical vulnerability', function () {
         'title' => 'Critical Remote Code Execution',
         'severity' => 'Critical',
         'description' => 'I can access the root terminal of the server via a header injection.',
-        'program_id' => $program->id
+        'program_id' => $program->id,
     ]);
 
     $response->assertStatus(201);
-
     // Refresh the user from the DB and check the math
     expect($user->fresh()->reputation)->toBe(100);
 });
@@ -123,7 +121,7 @@ it('multiplies points correctly for high-value programs', function () {
         'title' => 'High Severity Data Leak',
         'severity' => 'High', // High = 50 base points
         'description' => 'User private emails are leaking through the profile API endpoint.',
-        'program_id' => $program->id
+        'program_id' => $program->id,
     ]);
 
     // 50 base points * 2.5 multiplier = 125 points

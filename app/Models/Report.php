@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class Report extends Model
@@ -55,10 +56,24 @@ class Report extends Model
     public function scopeFilter(Builder $query, array $filters): void
     {
         $query->when($filters['search'] ?? null, function ($query, $search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'LIKE', "%{$search}%")
-                    ->orWhere('description', 'LIKE', "%{$search}%");
-            });
+            try {
+                $driver = DB::getDriverName();
+            } catch (\Throwable $e) {
+                $driver = null;
+            }
+
+            if ($driver === 'pgsql') {
+                // Use the GIN index by switching from LIKE to PostgreSQL Full-Text syntax
+                $query->whereRaw(
+                    "to_tsvector('english', title || ' ' || description) @@ plainto_tsquery('english', ?)",
+                    [$search]
+                );
+            } else {
+                $query->where(function ($q) use ($search) {
+                    $q->where('title', 'LIKE', "%{$search}%")
+                        ->orWhere('description', 'LIKE', "%{$search}%");
+                });
+            }
         })->when($filters['severity'] ?? null, function ($query, $severity) {
             $query->where('severity', $severity);
         });

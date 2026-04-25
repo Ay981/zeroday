@@ -23,19 +23,19 @@ return new class extends Migration
 
         // 3. PostgreSQL GIN Index (The Blazing Fast Search)
         // This creates a vector map of the title and description combined.
-        // We use raw SQL because Laravel Blueprint doesn't have a native 'GIN' helper.
+        // Create it only on PostgreSQL where GIN is supported.
         if (DB::getDriverName() === 'pgsql') {
-            DB::statement("CREATE INDEX reports_search_index ON reports USING GIN (to_tsvector('english', title || ' ' || description))");
+            DB::statement("CREATE INDEX IF NOT EXISTS reports_search_index ON reports USING GIN (to_tsvector('english', title || ' ' || description))");
         }
     }
 
     public function down(): void
     {
         Schema::table('reports', function (Blueprint $table) {
-            $table->dropIndex('reports_severity_index');
-            $table->dropIndex('reports_status_index');
-            $table->dropIndex('reports_user_id_index');
-            $table->dropIndex('reports_program_id_index');
+            $table->dropIndex(['severity']);
+            $table->dropIndex(['status']);
+            $table->dropIndex(['user_id']);
+            $table->dropIndex(['program_id']);
         });
 
         if (DB::getDriverName() === 'pgsql') {

@@ -17,7 +17,7 @@ class ReportPolicy
         return true;
     }
 
-    public function view(User $user, Report $report): bool
+    public function view(User $_user, Report $_report): bool
     {
         return true;
     }

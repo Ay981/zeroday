@@ -65,15 +65,23 @@ class ReportService
     }
 
     /**
-     * @param  array<string, mixed>  $filters
+     * List reports with optional user-based scoping.
+     *
+     * @param  array<string,mixed>  $filters
      */
-    public function listReports(array $filters, User $user, int $perPage = 15)
+    public function listReports(array $filters, ?User $user = null, int $perPage = 15)
     {
-        return Report::with(['user', 'program'])
-            ->when($user->role !== 'admin', fn ($q) => $q->where('user_id', $user->id))
+        $user = $user ?? Auth::user();
+
+        $query = Report::with(['user', 'program'])
             ->latest()
-            ->filter($filters)
-            ->paginate($perPage);
+            ->filter($filters);
+
+        if ($user !== null && $user->role !== 'admin') {
+            $query->where('user_id', $user->id);
+        }
+
+        return $query->paginate($perPage);
     }
 
     public function transitionStatus(Report $report, string $newStatus): Report
