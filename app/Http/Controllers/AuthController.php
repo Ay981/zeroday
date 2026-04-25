@@ -23,16 +23,19 @@ class AuthController extends Controller
             ], 401);
         }
 
-        $token = Auth::user()->createToken('auth_token')->plainTextToken;
+        $request->session()->regenerate();
 
         return response()->json([
-            'token' => $token,
+            'user' => new UserResource(Auth::user()),
         ]);
     }
 
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        Auth::logout();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return response()->json([
             'message' => 'Logged out successfully',
@@ -43,12 +46,11 @@ class AuthController extends Controller
     {
         $user = User::create($request->validated());
 
-        // Instant Login: Issue a token immediately so they don't have to login after signing up
-        $token = $user->createToken($user->name.'-AuthToken')->plainTextToken;
+        Auth::login($user);
+        $request->session()->regenerate();
 
         return response()->json([
             'user' => new UserResource($user),
-            'token' => $token,
-        ], 201); // 201 = Created
+        ], 201);
     }
 }

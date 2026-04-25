@@ -73,13 +73,11 @@ class ReportService
     {
         $user = $user ?? Auth::user();
 
+        $showAll = $filters['all'] ?? false;
+
         $query = Report::with(['user', 'program'])
             ->latest()
             ->filter($filters);
-
-        if ($user !== null && $user->role !== 'admin') {
-            $query->where('user_id', $user->id);
-        }
 
         return $query->paginate($perPage);
     }
