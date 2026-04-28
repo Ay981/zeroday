@@ -17,22 +17,23 @@ class ReportController extends Controller
         Gate::authorize('viewAny', Report::class);
 
         $filters = $request->only(['search', 'severity']);
-        $reports = $service->listReports($filters, $request->user());
+        $perPage = $request->input('per_page', 15);
+        $reports = $service->listReports($filters, $perPage);
 
         return ReportResource::collection($reports);
     }
 
     public function store(StoreReportRequest $request, ReportService $service)
-    {
-        // 1. Authorization check
-        Gate::authorize('create', Report::class);
+{
+    // Auth Check
+    Gate::authorize('create', Report::class);
 
-        // 2. Delegate to Service
-        $report = $service->createReport($request->validated());
+    // The Form Request validated() method automatically includes the file 
+    // because you defined 'evidence_image' in your rules!
+    $report = $service->createReport($request->validated());
 
-        // 3. Return Response
-        return new ReportResource($report->load(['user', 'program']));
-    }
+    return new ReportResource($report->load('user', 'program'));
+}
 
     public function update(UpdateReportRequest $request, Report $report, ReportService $service)
     {

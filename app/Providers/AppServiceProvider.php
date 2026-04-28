@@ -6,6 +6,7 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Telescope\TelescopeServiceProvider;
 
@@ -27,6 +28,8 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         JsonResource::wrap('data');
+        
+        URL::forceScheme('https');
 // Tier 1: Identity (Login & Register) - STRICT
     // Prevents brute force and bot accounts.
     RateLimiter::for('auth', function (Request $request) {

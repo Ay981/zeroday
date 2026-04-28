@@ -20,6 +20,8 @@ class UpdateReportRequest extends FormRequest
             'severity' => ['sometimes', 'in:Low,Medium,High,Critical'],
             'description' => ['sometimes', 'string', 'min:20'],
             'status' => ['sometimes', 'in:Open,In Progress,Patched'],
+            'evidence_image' => ['sometimes', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
+            'remove_image' => ['sometimes', 'in:true,false,1,0'],
         ];
     }
 }

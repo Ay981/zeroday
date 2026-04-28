@@ -18,12 +18,14 @@ class StoreReportRequest extends FormRequest
      * @return array<string, array<mixed>|string>
      */
     public function rules(): array
-    {
-        return [
-            'title' => ['required', 'string', 'min:10', 'max:255'],
-            'severity' => ['required', 'in:Low,Medium,High,Critical'],
-            'description' => ['required', 'string', 'min:20'],
-            'program_id' => ['required', 'integer', 'exists:programs,id'],
-        ];
-    }
+{
+    return [
+        'title' => 'required|string|max:255',
+        'severity' => 'required|in:Low,Medium,High,Critical',
+        'description' => 'required|string|min:20',
+        'program_id' => 'required|exists:programs,id',
+        // Security: Must be an image, max 2MB
+        'evidence_image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048', 
+    ];
+}
 }

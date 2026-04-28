@@ -12,7 +12,16 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->append(\App\Http\Middleware\TrustProxies::class);
+        $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
+        
+        $middleware->validateCsrfTokens(except: [
+            'api/v1/login',
+            'api/v1/register',
+            'api/v1/otp/send',
+            'api/v1/otp/verify',
+            'api/v1/register/verify',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

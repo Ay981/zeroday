@@ -20,6 +20,8 @@ class UserResource extends JsonResource
             'reputation' => $this->reputation,
             'level' => (int) floor(((int) $this->reputation) / 100),
             'role' => $this->role,
+            'otp_verified' => $this->otp_verified ?? false,
+            'is_verified' => $this->otp_verified ?? false,
         ];
     }
 }

@@ -1,0 +1,186 @@
+{
+  "info": {
+    "name": "Zeroday Auth - CSRF + Login",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Collection to fetch /sanctum/csrf-cookie and POST /api/v1/login with XSRF token (for local dev mkcert)."
+  },
+  "item": [
+    {
+      "name": "Get CSRF Cookie",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "https://app.zeroday.test:5173"
+          }
+        ],
+        "url": {
+          "raw": "https://api.zeroday.test/sanctum/csrf-cookie",
+          "protocol": "https",
+          "host": ["api","zeroday","test"],
+          "path": ["sanctum","csrf-cookie"]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Save the XSRF-TOKEN cookie into a global variable decoded for header use",
+              "const cookie = pm.cookies.get('XSRF-TOKEN');",
+              "if (cookie) {",
+              "  const decoded = decodeURIComponent(cookie);",
+              "  pm.globals.set('xsrf_token', decoded);",
+              "  console.log('Saved xsrf_token (global)');",
+              "} else {",
+              "  console.warn('XSRF-TOKEN cookie not found');",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login (uses XSRF token)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Origin",
+            "value": "https://app.zeroday.test:5173"
+          },
+          {
+            "key": "X-XSRF-TOKEN",
+            "value": "{{xsrf_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"aymen@aymen.com\",\n  \"password\": \"aymenaymen\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://api.zeroday.test/api/v1/login",
+          "protocol": "https",
+          "host": ["api","zeroday","test"],
+          "path": ["api","v1","login"]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Ensure X-XSRF-TOKEN header is set from global xsrf_token (if available)",
+              "const token = pm.globals.get('xsrf_token');",
+              "if (token) {",
+              "  pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: token });",
+              "  pm.environment.set('xsrf_token', token);",
+              "} else {",
+              "  // fallback: try to read cookie directly from cookie jar and decode",
+              "  const cookie = pm.cookies.get('XSRF-TOKEN');",
+              "  if (cookie) {",
+              "    const decoded = decodeURIComponent(cookie);",
+              "    pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: decoded });",
+              "    pm.globals.set('xsrf_token', decoded);",
+              "  }",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200 or 201', function () {",
+              "  pm.expect(pm.response.code).to.be.oneOf([200,201]);",
+              "});",
+              "// Save response token JSON if present",
+              "try {",
+              "  const body = pm.response.json();",
+              "  if (body.token) pm.environment.set('api_token', body.token);",
+              "} catch(e) {}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Logout (uses XSRF token)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Origin",
+            "value": "https://app.zeroday.test:5173"
+          },
+          {
+            "key": "X-XSRF-TOKEN",
+            "value": "{{xsrf_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "https://api.zeroday.test/api/v1/logout",
+          "protocol": "https",
+          "host": ["api","zeroday","test"],
+          "path": ["api","v1","logout"]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Ensure X-XSRF-TOKEN header is set from global xsrf_token (if available)",
+              "const token = pm.globals.get('xsrf_token') || pm.environment.get('xsrf_token');",
+              "if (token) {",
+              "  pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: token });",
+              "} else {",
+              "  // fallback: try to read cookie directly from cookie jar and decode",
+              "  const cookie = pm.cookies.get('XSRF-TOKEN');",
+              "  if (cookie) {",
+              "    const decoded = decodeURIComponent(cookie);",
+              "    pm.request.headers.upsert({ key: 'X-XSRF-TOKEN', value: decoded });",
+              "    pm.globals.set('xsrf_token', decoded);",
+              "  }",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Logout returned success (200/302)', function () {",
+              "  pm.expect(pm.response.code).to.be.oneOf([200,302]);",
+              "});",
+              "// Clear stored api_token after logout",
+              "pm.environment.unset('api_token');",
+              "pm.globals.unset('api_token');"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

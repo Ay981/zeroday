@@ -18,11 +18,13 @@ class ReportResource extends JsonResource
             'slug' => $this->slug,
             'program_id' => $this->program_id,
             'program' => new ProgramResource($this->whenLoaded('program')),
+            'ai_summary' => $this->ai_summary,
             'severity' => $this->severity,
             'description' => $this->description,
             'status' => $this->status,
             'created_at' => $this->created_at,
             'submitted_by' => new UserResource($this->whenLoaded('user')),
+            'evidence_image_url' => $this->evidence_image ? asset('storage/' . $this->evidence_image) : null,
 
         ];
     }

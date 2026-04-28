@@ -22,6 +22,8 @@ class Report extends Model
         'status',
         'program_id',
         'user_id',
+        'evidence_image',
+        'ai_summary',
     ];
 
     public function user(): BelongsTo

@@ -25,22 +25,49 @@ Laravel is accessible, powerful, and provides tools required for large, robust a
 
 This project exposes an authenticated bug-reporting API using Laravel Sanctum.
 
+## Daily Starter
+
+Use these commands each day to run local development:
+
+### Backend API (this repo)
+
+```bash
+composer run dev:api-https
+```
+
+This starts:
+
+- Laravel API at `http://127.0.0.1:8000`
+- HTTPS proxy at `https://api.zeroday.test`
+
+### Frontend (separate repo)
+
+```bash
+npm run dev
+```
+
+Expected frontend URL:
+
+- `https://app.zeroday.test:5173`
+
 ### Auth
 
-- `POST /api/register` registers a user and returns a token.
-- `POST /api/login` returns a Sanctum token.
-- `POST /api/logout` revokes the current token (requires `auth:sanctum`).
+- `GET /sanctum/csrf-cookie` initializes the CSRF + session cookies.
+- `POST /api/v1/register` registers and starts a session.
+- `POST /api/v1/login` starts a session.
+- `POST /api/v1/logout` destroys the current session (requires `auth:sanctum`).
+
 
 ### Core Endpoints
 
-- `GET /api/user` returns the authenticated user via `UserResource`.
-- `GET /api/user/stats` returns aggregate report stats for the authenticated user.
-- `GET /api/reports` lists reports.
-- `POST /api/reports` creates a report.
-- `GET /api/reports/{report}` returns a single report.
-- `PATCH /api/reports/{report}` updates a report.
-- `DELETE /api/reports/{report}` deletes a report.
-- `GET /api/programs` returns available programs.
+- `GET /api/v1/user` returns the authenticated user via `UserResource`.
+- `GET /api/v1/user/stats` returns aggregate report stats for the authenticated user.
+- `GET /api/v1/reports` lists reports.
+- `POST /api/v1/reports` creates a report.
+- `GET /api/v1/reports/{report}` returns a single report.
+- `PATCH /api/v1/reports/{report}` updates a report.
+- `DELETE /api/v1/reports/{report}` deletes a report.
+- `GET /api/v1/programs` returns available programs.
 
 ### API Response Shape
 
@@ -78,12 +105,14 @@ Example report response:
 
 ## Frontend Integration (`/zeroday-frontend`)
 
-If your frontend app lives in `/zeroday-frontend`, configure it to call this API with a bearer token and handle Laravel's `data` wrapper.
+If your frontend app lives in `/zeroday-frontend`, configure it to call this API using Sanctum cookie auth and handle Laravel's `data` wrapper.
 
 ### Base API Setup
 
-- API base URL: `http://localhost:8000/api`
-- Auth header: `Authorization: Bearer <token>`
+- API origin: `https://api.zeroday.test`
+- API base URL: `https://api.zeroday.test/api/v1`
+- Always send credentials (`withCredentials: true`)
+- Call `/sanctum/csrf-cookie` before login/register
 
 Example Axios client:
 
@@ -91,19 +120,31 @@ Example Axios client:
 import axios from 'axios';
 
 export const apiClient = axios.create({
-	baseURL: 'http://localhost:8000/api',
+	baseURL: 'https://api.zeroday.test/api/v1',
+	withCredentials: true,
+	withXSRFToken: true,
+	headers: {
+		Accept: 'application/json',
+		'X-Requested-With': 'XMLHttpRequest',
+	},
 });
 
-apiClient.interceptors.request.use((config) => {
-	const token = localStorage.getItem('token');
-
-	if (token) {
-		config.headers.Authorization = `Bearer ${token}`;
-	}
-
-	return config;
-});
+export const getCsrfCookie = async () => {
+	await axios.get('https://api.zeroday.test/sanctum/csrf-cookie', {
+		withCredentials: true,
+		headers: {
+			Accept: 'application/json',
+			'X-Requested-With': 'XMLHttpRequest',
+		},
+	});
+};
 ```
+
+Typical auth flow:
+
+1. `await getCsrfCookie()`
+2. `await apiClient.post('/login', credentials)`
+3. `await apiClient.get('/user')`
 
 ### Reading Wrapped Resources
 
@@ -129,7 +170,7 @@ const payload = response.data?.data ?? response.data;
 
 ### Level Display Logic
 
-Backend now returns `level` on `/api/user`. If missing in older payloads, derive from reputation:
+Backend now returns `level` on `/api/v1/user`. If missing in older payloads, derive from reputation:
 
 ```ts
 const level = user.level ?? Math.floor(Number(user.reputation ?? 0) / 100);

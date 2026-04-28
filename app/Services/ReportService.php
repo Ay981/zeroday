@@ -2,102 +2,105 @@
 
 namespace App\Services;
 
-use App\Models\Program;
 use App\Models\Report;
+use App\Models\Program;
 use App\Models\User;
-use Illuminate\Auth\AuthenticationException;
-use Illuminate\Http\Exceptions\HttpResponseException;
+use App\Events\ReportSubmitted; // <--- The Background Queue Trigger
+use App\Jobs\AnalyzeReportWithGemini;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\UploadedFile;
 
 class ReportService
 {
     /**
-     * @var array<string, int>
+     * Read: Handle filtering, eager loading, and pagination (The GIN Search Engine)
      */
-    private const SEVERITY_POINTS = [
-        'Low' => 10,
-        'Medium' => 25,
-        'High' => 50,
-        'Critical' => 100,
-    ];
+    public function listReports(array $filters, int $perPage = 15)
+    {
+        return Report::with(['user', 'program'])
+            ->latest()
+            ->filter($filters) // Hits your Model's scopeFilter
+            ->paginate($perPage);
+    }
 
     /**
-     * @param  array<string, mixed>  $data
+     * Create: The Main Orchestrator
      */
     public function createReport(array $data): Report
     {
-        $user = Auth::user();
+        return DB::transaction(function () use ($data) {
+            $user = Auth::user();
+            $program = Program::findOrFail($data['program_id']);
 
-        if ($user === null) {
-            throw new AuthenticationException('Unauthenticated.');
-        }
+            // 1. Handle the Image
+            $data = $this->handleFileUpload($data);
+            
+            // 2. Create the DB row
+            $report = $this->storeReportRecord($user, $data);
+            
+            // 3. Award Points
+            $this->awardReputation($user, $program, $data['severity']);
 
-        $program = Program::findOrFail($data['program_id']);
+            // 4. AI Analysis
+            AnalyzeReportWithGemini::dispatch($report);
 
-        // 2. Calculate points using the program's multiplier
-        $basePoints = self::SEVERITY_POINTS[$data['severity']] ?? 0;
-        $finalPoints = (int) ($basePoints * $program->bounty_multiplier);
-
-        // 3. Create the report linked to the program
-        $report = $user->reports()->create($data);
-
-        // 4. Reward the user
-        $user->increment('reputation', $finalPoints);
-
-        return $report;
+            return $report;
+        });
     }
 
     /**
-     * @param  array<string, mixed>  $data
+     * Update: Hydrate and Modify
      */
     public function updateReport(Report $report, array $data): Report
     {
-        if (isset($data['status'])) {
-            $report = $this->transitionStatus($report, $data['status']);
-            unset($data['status']);
-        }
-
-        if (! empty($data)) {
-            $report->update($data);
-        }
-
-        return $report->refresh();
-    }
-
-    /**
-     * List reports with optional user-based scoping.
-     *
-     * @param  array<string,mixed>  $filters
-     */
-    public function listReports(array $filters, ?User $user = null, int $perPage = 15)
-    {
-        $user = $user ?? Auth::user();
-
-        $showAll = $filters['all'] ?? false;
-
-        $query = Report::with(['user', 'program'])
-            ->latest()
-            ->filter($filters);
-
-        return $query->paginate($perPage);
-    }
-
-    public function transitionStatus(Report $report, string $newStatus): Report
-    {
-        // Business Rule: You can't un-patch a bug once it's closed
-        if ($report->status === 'Patched' && $newStatus === 'Open') {
-            throw new HttpResponseException(
-                response()->json(['message' => 'Cannot re-open a patched vulnerability.'], 422)
-            );
-        }
-
-        $report->update(['status' => $newStatus]);
-
-        // If it was patched, maybe send a notification or extra points?
-        if ($newStatus === 'Patched') {
-            // Logic for notifications will go here in Week 6 (Queues)
-        }
-
+        $data = $this->handleFileUpload($data, $report->evidence_image);
+        
+        $report->update($data);
+        
         return $report;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Private Business Logic Modules
+    |--------------------------------------------------------------------------
+    */
+
+    private function handleFileUpload(array $data, ?string $oldFilePath = null): array
+    {
+        // Handle image removal
+        if (isset($data['remove_image']) && in_array($data['remove_image'], [true, 'true', 1, '1'])) {
+            if ($oldFilePath) {
+                Storage::disk('public')->delete($oldFilePath);
+            }
+            $data['evidence_image'] = null;
+            unset($data['remove_image']);
+        }
+        // Handle new image upload
+        elseif (isset($data['evidence_image']) && $data['evidence_image'] instanceof UploadedFile) {
+            // Delete old file if updating
+            if ($oldFilePath) {
+                Storage::disk('public')->delete($oldFilePath);
+            }
+            // Replace the File object with the String path
+            $data['evidence_image'] = $data['evidence_image']->store('evidence', 'public');
+        }
+        return $data;
+    }
+
+    private function storeReportRecord(User $user, array $data): Report
+    {
+        return $user->reports()->create($data);
+    }
+
+    private function awardReputation(User $user, Program $program, string $severity): void
+    {
+        $pointsMap = ['Low' => 10, 'Medium' => 25, 'High' => 50, 'Critical' => 100];
+        $basePoints = $pointsMap[$severity] ?? 0;
+        $finalPoints = (int) ($basePoints * $program->bounty_multiplier);
+
+        $user->increment('reputation', $finalPoints);
     }
 }

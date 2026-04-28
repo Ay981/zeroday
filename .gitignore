@@ -27,4 +27,7 @@ Thumbs.db
 
 # Copilot skills
 /.github/skills/
+*.pem
+cookies.txt
+Caddyfile.local
 
