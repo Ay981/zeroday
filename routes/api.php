@@ -37,6 +37,26 @@ Route::prefix('v1')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | EVIDENCE IMAGE (PUBLIC)
+    |--------------------------------------------------------------------------
+    |
+    | Serve uploaded evidence images from the `public` disk. Stored files
+    | are saved by `ReportService` to the `public` disk under `evidence/`.
+    */
+    Route::get('/evidence/{filename}', function (string $filename) {
+        $path = 'evidence/' . $filename;
+
+        $disk = Storage::disk('public');
+
+        if (! $disk->exists($path)) {
+            abort(404);
+        }
+
+        return $disk->response($path);
+    });
+
+    /*
+    |--------------------------------------------------------------------------
     | PROTECTED ROUTES (SANCTUM SPA CORRECT WAY)
     |--------------------------------------------------------------------------
     */
@@ -62,20 +82,12 @@ Route::prefix('v1')->group(function () {
         |--------------------------
         | EVIDENCE IMAGE PROXY
         |--------------------------
+        |
+        | Serve uploaded evidence images. Images are stored on the
+        | `public` disk (see ReportService), so explicitly use that
+        | disk instead of the environment default. This route is
+        | intentionally public so the frontend can load images.
         */
-     Route::get('/evidence/{filename}', function (string $filename) {
-    $path = 'evidence/' . $filename;
-
-    // Change 'public' to whatever disk you upload to
-    $disk = Storage::disk(config('filesystems.default'));
-
-    if (! $disk->exists($path)) {
-        abort(404);
-    }
-
-    return $disk->response($path);
-    
-        });
 
         /*
         |--------------------------
