@@ -8,6 +8,7 @@ use App\Http\Resources\UserResource;
 use App\Services\ProgramService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 /*
 |--------------------------------------------------------------------------
@@ -56,6 +57,21 @@ Route::prefix('v1')->group(function () {
         |--------------------------
         */
         Route::post('/logout', [AuthController::class, 'logout']);
+
+        /*
+        |--------------------------
+        | EVIDENCE IMAGE PROXY
+        |--------------------------
+        */
+        Route::get('/evidence/{filename}', function (string $filename) {
+            $path = 'evidence/'.$filename;
+
+            if (! Storage::disk('public')->exists($path)) {
+                abort(404);
+            }
+
+            return Storage::disk('public')->response($path);
+        });
 
         /*
         |--------------------------
