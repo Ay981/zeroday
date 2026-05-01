@@ -31,4 +31,5 @@ Thumbs.db
 *.pem
 cookies.txt
 Caddyfile.local
+.secrets
 
