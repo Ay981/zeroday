@@ -2,253 +2,298 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Http\Resources\UserResource;
+use App\Mail\OtpMail;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Cache;
-use App\Http\Requests\LoginRequest;
-use App\Mail\OtpMail;
+use Illuminate\Support\Facades\Redis;
 
 class AuthController extends Controller
 {
-    public function login(LoginRequest $request)
+    private const OTP_TTL          = 600; // 10 minutes
+    private const MAX_OTP_ATTEMPTS = 5;
+
+    /*
+    |--------------------------------------------------------------------------
+    | REGISTER (STEP 1: STORE TEMP DATA + SEND OTP)
+    |--------------------------------------------------------------------------
+    */
+    public function register(RegisterRequest $request): JsonResponse
     {
-        if (! Auth::attempt($request->validated())) {
+        $email = strtolower($request->email);
+
+        // Reject if user already fully registered
+        if (User::where('email', $email)->exists()) {
             return response()->json([
-            'message' => 'Invalid credentials',
+                'message' => 'Email already registered.',
+            ], 409);
+        }
+
+        $key = "pending_registration:{$email}";
+
+        if (Redis::exists($key)) {
+            return response()->json([
+                'message' => 'Registration already in progress. Check your email or request a new OTP.',
+            ], 409);
+        }
+
+        $otp = $this->generateOtp();
+
+        Redis::setex($key, self::OTP_TTL, json_encode([
+            'name'     => $request->name,
+            'email'    => $email,
+            'password' => Hash::make($request->password),
+            'otp'      => $otp,
+            'attempts' => 0,
+        ]));
+
+        Mail::to($email)->queue(new OtpMail($otp));
+
+        return response()->json([
+            'message' => 'OTP sent to your email. Valid for 10 minutes.',
+        ], 202);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | COMPLETE REGISTRATION (VERIFY OTP + CREATE USER + AUTO LOGIN)
+    |--------------------------------------------------------------------------
+    */
+    public function completeRegistration(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => ['required', 'email'],
+            'otp'   => ['required', 'string', 'size:6'],
+        ]);
+
+        $email = strtolower($request->email);
+        $key   = "pending_registration:{$email}";
+
+        $pending = $this->getPendingRegistration($key);
+
+        if (!$pending) {
+            return response()->json([
+                'message' => 'Registration expired or not found. Please register again.',
+            ], 422);
+        }
+
+        // Check attempt limit before verifying
+        if ($pending['attempts'] >= self::MAX_OTP_ATTEMPTS) {
+            Redis::del($key);
+            return response()->json([
+                'message' => 'Too many failed attempts. Please register again.',
+            ], 429);
+        }
+
+        if (!hash_equals($pending['otp'], $request->otp)) {
+            $remaining = $this->incrementOtpAttempts($key, $pending);
+            return response()->json([
+                'message'            => 'Invalid OTP.',
+                'attempts_remaining' => max(0, self::MAX_OTP_ATTEMPTS - $remaining),
+            ], 422);
+        }
+
+        // Guard against race condition — check again right before creation
+        if (User::where('email', $email)->exists()) {
+            Redis::del($key);
+            return response()->json([
+                'message' => 'An account with this email already exists.',
+            ], 409);
+        }
+
+        $user = User::create([
+            'name'         => $pending['name'],
+            'email'        => $email,
+            'password'     => $pending['password'],
+            'otp_verified' => true,
+        ]);
+
+        Redis::del($key);
+
+        auth()->login($user);
+        $request->session()->regenerate();
+
+        return response()->json([
+            'message' => 'Account created and logged in successfully.',
+            'user'    => new UserResource($user),
+        ], 201);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOGIN
+    |--------------------------------------------------------------------------
+    */
+    public function login(LoginRequest $request): JsonResponse
+    {
+        $user = User::where('email', strtolower($request->email))->first();
+
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'message' => 'Invalid credentials.',
             ], 401);
         }
 
-        $request->session()->regenerate();
-        
-        $user = Auth::user();
-        
-        // If user is not verified, send OTP and deny access
         if (!$user->otp_verified) {
-            $this->generateAndSendOtp($request);
-            
             return response()->json([
-                'message' => 'Account not verified. Please check your email for verification code.',
-                'user' => new UserResource($user),
-                'requires_verification' => true
+                'message' => 'Account not verified. Please verify your email first.',
             ], 403);
         }
+
+        auth()->login($user);
+        $request->session()->regenerate();
 
         return response()->json([
             'user' => new UserResource($user),
         ]);
     }
-    public function generateAndSendOtp(Request $request)
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOGOUT
+    |--------------------------------------------------------------------------
+    */
+    public function logout(Request $request): JsonResponse
     {
-        $user = $request->user();
-        
-        // 1. Generate 6-digit code
-        $otp = rand(100000, 999999);
-
-        // 2. Hash it and save to DB with 10-minute expiry
-        $user->update([
-            'otp' => Hash::make($otp),
-            'otp_expires_at' => now()->addMinutes(10),
-        ]);
-
-        // 3. Dispatch to Queue (The Background Move)
-        // This ensures the response is instant
-        Mail::to($user->email)->queue(new OtpMail($otp));
-
-        return response()->json([
-            'message' => 'Verification code sent to your email',
-            'expires_at' => $user->otp_expires_at
-        ]);
-    }
- public function verifyOtp(Request $request)
-{
-    $request->validate(['otp' => 'required|string|size:6']);
-    $user = $request->user();
-
-    // 1. Check Expiry
-    if (now()->isAfter($user->otp_expires_at)) {
-        return response()->json(['message' => 'Code expired.'], 422);
-    }
-
-    // 2. Check Hash match
-    if (!Hash::check($request->otp, $user->otp)) {
-        return response()->json(['message' => 'Invalid code.'], 422);
-    }
-
-    // 3. Success
-    $user->update([
-        'otp_verified' => true,
-        'otp' => null,
-        'otp_expires_at' => null,
-    ]);
-
-    return response()->json(['message' => 'Identity verified. Terminal unlocked.']);
-}
-    public function logout(Request $request)
-    {
-
-
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
         return response()->json([
-            'message' => 'Logged out successfully',
+            'message' => 'Logged out successfully.',
         ]);
     }
 
-    public function register(RegisterRequest $request)
+    /*
+    |--------------------------------------------------------------------------
+    | CURRENT AUTH USER
+    |--------------------------------------------------------------------------
+    */
+    public function me(Request $request): JsonResponse
     {
-        $validated = $request->validated();
-        
-        // Generate and send OTP
-        $otp = rand(100000, 999999);
-        
-        // Store pending registration in cache with 10-minute expiry
-        $pendingUser = [
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'otp' => Hash::make($otp),
-            'otp_expires_at' => now()->addMinutes(10)->timestamp,
-        ];
-        
-        Cache::put("pending_registration:{$validated['email']}", $pendingUser, 600); // 10 minutes
-        
-        // Send OTP email
-        Mail::to($validated['email'])->queue(new OtpMail($otp));
-
         return response()->json([
-            'message' => 'Registration initiated. Please check your email for verification code.',
-            'pending_email' => $validated['email'],
-            'expires_at' => now()->addMinutes(10),
-        ], 202);
-    }
-    
-    public function generateAndSendOtpPublic(Request $request)
-    {
-        $request->validate(['email' => 'required|email']);
-        
-        // Check if user exists in cache (pending registration)
-        $pendingKey = "pending_registration:{$request->email}";
-        $pendingUser = Cache::get($pendingKey);
-        
-        if (!$pendingUser) {
-            return response()->json(['message' => 'Registration not found or expired.'], 404);
-        }
-        
-        // 1. Generate 6-digit code
-        $otp = rand(100000, 999999);
-
-        // 2. Update OTP in cache with 10-minute expiry
-        $pendingUser['otp'] = Hash::make($otp);
-        $pendingUser['otp_expires_at'] = now()->addMinutes(10)->timestamp;
-        Cache::put($pendingKey, $pendingUser, 600); // 10 minutes
-
-        // 3. Dispatch to Queue (The Background Move)
-        // This ensures the response is instant
-        Mail::to($request->email)->queue(new OtpMail($otp));
-
-        return response()->json([
-            'message' => 'Verification code sent to your email',
-            'expires_at' => now()->addMinutes(10)
+            'user' => new UserResource($request->user()),
         ]);
     }
-    
-    public function verifyOtpPublic(Request $request)
+
+    /*
+    |--------------------------------------------------------------------------
+    | RESEND OTP (PUBLIC — during registration flow)
+    |--------------------------------------------------------------------------
+    */
+    public function generateAndSendOtpPublic(Request $request): JsonResponse
     {
         $request->validate([
-            'email' => 'required|email',
-            'otp' => 'required|string|size:6',
+            'email' => ['required', 'email'],
         ]);
 
-        // Get pending registration from cache
-        $pendingKey = "pending_registration:{$request->email}";
-        $pendingUser = Cache::get($pendingKey);
+        $email = strtolower($request->email);
+        $key   = "pending_registration:{$email}";
 
-        if (!$pendingUser) {
-            return response()->json(['message' => 'Registration not found or expired.'], 422);
+        $pending = $this->getPendingRegistration($key);
+
+        if (!$pending) {
+            return response()->json([
+                'message' => 'Registration not found or expired. Please register again.',
+            ], 404);
         }
 
-        // Check OTP expiry
-        if (now()->timestamp > $pendingUser['otp_expires_at']) {
-            Cache::forget($pendingKey);
-            return response()->json(['message' => 'Code expired.'], 422);
-        }
+        $otp = $this->generateOtp();
 
-        // Verify OTP
-        if (!Hash::check($request->otp, $pendingUser['otp'])) {
-            return response()->json(['message' => 'Invalid code.'], 422);
-        }
+        $pending['otp']      = $otp;
+        $pending['attempts'] = 0; // Reset attempts on resend
 
-        // Create the user in database
-        $user = User::create([
-            'name' => $pendingUser['name'],
-            'email' => $pendingUser['email'],
-            'password' => $pendingUser['password'],
-            'otp_verified' => true,
-        ]);
+        // Preserve remaining TTL — do not give extra time on resend
+        $ttl = max((int) Redis::ttl($key), 1);
+        Redis::setex($key, $ttl, json_encode($pending));
 
-        // Clean up cache
-        Cache::forget($pendingKey);
-
-        // Log the user in with session
-        Auth::login($user);
-        $request->session()->regenerate();
+        Mail::to($email)->queue(new OtpMail($otp));
 
         return response()->json([
-            'message' => 'Registration completed successfully!',
-            'user' => new UserResource($user),
-        ], 201);
+            'message' => 'A new OTP has been sent to your email.',
+        ]);
     }
-    
-    public function completeRegistration(Request $request)
+
+    /*
+    |--------------------------------------------------------------------------
+    | VERIFY OTP (PUBLIC — standalone check without completing registration)
+    |--------------------------------------------------------------------------
+    */
+    public function verifyOtpPublic(Request $request): JsonResponse
     {
         $request->validate([
-            'email' => 'required|email',
-            'otp' => 'required|string|size:6',
+            'email' => ['required', 'email'],
+            'otp'   => ['required', 'string', 'size:6'],
         ]);
 
-        // Get pending registration from cache
-        $pendingKey = "pending_registration:{$request->email}";
-        $pendingUser = Cache::get($pendingKey);
+        $email = strtolower($request->email);
+        $key   = "pending_registration:{$email}";
 
-        if (!$pendingUser) {
-            return response()->json(['message' => 'Registration not found or expired.'], 422);
+        $pending = $this->getPendingRegistration($key);
+
+        if (!$pending) {
+            return response()->json([
+                'message' => 'Registration not found or expired. Please register again.',
+            ], 404);
         }
 
-        // Check OTP expiry
-        if (now()->timestamp > $pendingUser['otp_expires_at']) {
-            Cache::forget($pendingKey);
-            return response()->json(['message' => 'Code expired.'], 422);
+        if ($pending['attempts'] >= self::MAX_OTP_ATTEMPTS) {
+            Redis::del($key);
+            return response()->json([
+                'message' => 'Too many failed attempts. Please register again.',
+            ], 429);
         }
 
-        // Verify OTP
-        if (!Hash::check($request->otp, $pendingUser['otp'])) {
-            return response()->json(['message' => 'Invalid code.'], 422);
+        if (!hash_equals($pending['otp'], $request->otp)) {
+            $remaining = $this->incrementOtpAttempts($key, $pending);
+            return response()->json([
+                'message'            => 'Invalid OTP.',
+                'attempts_remaining' => max(0, self::MAX_OTP_ATTEMPTS - $remaining),
+            ], 422);
         }
-
-        // Create the user in database
-        $user = User::create([
-            'name' => $pendingUser['name'],
-            'email' => $pendingUser['email'],
-            'password' => $pendingUser['password'],
-            'otp_verified' => true,
-        ]);
-
-        // Clean up cache
-        Cache::forget($pendingKey);
-
-        // Log the user in
-        Auth::login($user);
-        $request->session()->regenerate();
 
         return response()->json([
-            'message' => 'Registration completed successfully!',
-            'user' => new UserResource($user),
-        ], 201);
+            'message' => 'OTP verified successfully.',
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | PRIVATE HELPERS
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Retrieve and decode a pending registration from Redis.
+     * Returns null if the key does not exist.
+     */
+    private function getPendingRegistration(string $key): ?array
+    {
+        $data = Redis::get($key);
+        return $data ? json_decode($data, true) : null;
+    }
+
+    /**
+     * Increment the OTP attempt counter while preserving TTL.
+     * Returns the new attempt count.
+     */
+    private function incrementOtpAttempts(string $key, array $pending): int
+    {
+        $pending['attempts']++;
+        $ttl = max((int) Redis::ttl($key), 1);
+        Redis::setex($key, $ttl, json_encode($pending));
+        return $pending['attempts'];
+    }
+
+    /**
+     * Generate a cryptographically random 6-digit OTP.
+     */
+    private function generateOtp(): string
+    {
+        return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     }
 }

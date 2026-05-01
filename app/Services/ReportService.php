@@ -2,28 +2,74 @@
 
 namespace App\Services;
 
-use App\Models\Report;
-use App\Models\Program;
-use App\Models\User;
-use App\Events\ReportSubmitted; // <--- The Background Queue Trigger
 use App\Jobs\AnalyzeReportWithGemini;
+use App\Models\Program;
+use App\Models\Report;
+use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Http\UploadedFile;
 
 class ReportService
 {
     /**
      * Read: Handle filtering, eager loading, and pagination (The GIN Search Engine)
      */
-    public function listReports(array $filters, int $perPage = 15)
+    public function listReports(array $filters)
     {
-        return Report::with(['user', 'program'])
-            ->latest()
-            ->filter($filters) // Hits your Model's scopeFilter
-            ->paginate($perPage);
+        $query = Report::with(['user', 'program']);
+
+        if (! empty($filters['search']) && ($filters['ai_mode'] ?? 'false') === 'true') {
+            $searchVector = $this->getGeminiEmbedding($filters['search']);
+
+            if ($searchVector !== []) {
+                return $query->searchSemantic($searchVector)->paginate(15);
+            }
+
+            Log::warning('AI semantic search skipped because Gemini did not return an embedding.');
+        }
+
+        return $query->latest()->filter($filters)->paginate(15);
     }
+
+    private function getGeminiEmbedding(string $text): array
+{
+    $apiKey = config('services.gemini.key');
+
+    if (!$apiKey) {
+        Log::warning('Gemini API key missing');
+        return [];
+    }
+
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key={$apiKey}";
+
+    $response = Http::timeout(30)
+        ->retry(3, 250)
+        ->acceptJson()
+        ->post($url, [
+            'content' => [
+                'parts' => [
+                    [
+                        'text' => "task: search result | query: {$text}"
+                    ]
+                ]
+            ],
+            'output_dimensionality' => 768
+        ]);
+
+    if (!$response->successful()) {
+        Log::warning('Gemini embedding failed', [
+            'error' => $response->body(),
+        ]);
+
+        return [];
+    }
+
+    return $response->json('embedding.values') ?? [];
+}
 
     /**
      * Create: The Main Orchestrator
@@ -36,10 +82,10 @@ class ReportService
 
             // 1. Handle the Image
             $data = $this->handleFileUpload($data);
-            
+
             // 2. Create the DB row
             $report = $this->storeReportRecord($user, $data);
-            
+
             // 3. Award Points
             $this->awardReputation($user, $program, $data['severity']);
 
@@ -56,9 +102,9 @@ class ReportService
     public function updateReport(Report $report, array $data): Report
     {
         $data = $this->handleFileUpload($data, $report->evidence_image);
-        
+
         $report->update($data);
-        
+
         return $report;
     }
 
@@ -87,6 +133,7 @@ class ReportService
             // Replace the File object with the String path
             $data['evidence_image'] = $data['evidence_image']->store('evidence', 'public');
         }
+
         return $data;
     }
 

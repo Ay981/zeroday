@@ -37,7 +37,7 @@ composer run dev:api-https
 
 This starts:
 
-- Laravel API at `http://127.0.0.1:8000`
+- Laravel API at `http://127.0.0.1:8001`
 - HTTPS proxy at `https://api.zeroday.test`
 
 ### Frontend (separate repo)

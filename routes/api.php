@@ -9,142 +9,85 @@ use App\Services\ProgramService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['web'])->prefix('v1')->group(function () {
-
-    /*
-    |--------------------------------------------------------------------------
-    | PUBLIC ROUTES
-    |--------------------------------------------------------------------------
-    */
-    // No routes here for now
-});
-
 /*
 |--------------------------------------------------------------------------
-| API ROUTES (No Web Middleware)
+| API V1 ROUTES (SANCTUM SPA CLEAN VERSION)
 |--------------------------------------------------------------------------
 */
-Route::middleware(['web'])->prefix('v1')->group(function () {
+
+Route::prefix('v1')->group(function () {
+
     /*
     |--------------------------------------------------------------------------
-    | WEB ROUTES (with CSRF/Session)
+    | AUTH (PUBLIC)
     |--------------------------------------------------------------------------
     */
-    Route::post('/login', [AuthController::class, 'login'])->name('login');
-    Route::post('/register', [AuthController::class, 'register'])->name('register');
-    
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/register', [AuthController::class, 'register']);
+
     /*
     |--------------------------------------------------------------------------
-    | PUBLIC OTP VERIFICATION ROUTES (no auth required)
+    | OTP FLOW (PUBLIC)
     |--------------------------------------------------------------------------
     */
-    Route::post('/otp/verify', [AuthController::class, 'verifyOtpPublic'])->name('otp.verify.public');
-    Route::post('/register/verify', [AuthController::class, 'completeRegistration'])->name('register.verify');
-    
+    Route::post('/otp/send', [AuthController::class, 'generateAndSendOtpPublic']);
+    Route::post('/otp/verify', [AuthController::class, 'verifyOtpPublic']);
+    Route::post('/register/verify', [AuthController::class, 'completeRegistration']);
+
     /*
     |--------------------------------------------------------------------------
-    | SESSION AUTHENTICATED ROUTES
+    | PROTECTED ROUTES (SANCTUM SPA CORRECT WAY)
     |--------------------------------------------------------------------------
     */
-    Route::middleware(['auth'])->group(function () {
+    Route::middleware('auth:sanctum')->group(function () {
+
+        /*
+        |--------------------------
+        | CURRENT USER
+        |--------------------------
+        */
         Route::get('/user', function (Request $request) {
             return new UserResource($request->user());
-        })->name('user.current');
-        Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-        
+        });
+
+        /*
+        |--------------------------
+        | LOGOUT
+        |--------------------------
+        */
+        Route::post('/logout', [AuthController::class, 'logout']);
+
         /*
         |--------------------------
         | REPORTS
         |--------------------------
         */
         Route::controller(ReportController::class)->group(function () {
-            Route::get('/reports', 'index')->name('reports.index');
-            Route::get('/reports/{report}', 'show')->name('reports.show');
-            Route::post('/reports', 'store')->name('reports.store');
-            Route::patch('/reports/{report}', 'update')->name('reports.update');
-            Route::delete('/reports/{report}', 'destroy')->name('reports.destroy');
+            Route::get('/reports', 'index');
+            Route::get('/reports/{report}', 'show');
+            Route::post('/reports', 'store');
+            Route::patch('/reports/{report}', 'update');
+            Route::delete('/reports/{report}', 'destroy');
         });
-        
+
         /*
         |--------------------------
         | USER STATS
         |--------------------------
         */
-        Route::get('/user/stats', [UserController::class, 'stats'])->name('user.stats');
-    });
-});
+        Route::get('/user/stats', [UserController::class, 'stats']);
 
-/*
-|--------------------------------------------------------------------------
-| API ROUTES (No Web Middleware)
-|--------------------------------------------------------------------------
-*/
-Route::middleware(['api'])->prefix('v1')->group(function () {
-    /*
-    |--------------------------------------------------------------------------
-    | SEMI-PUBLIC ROUTES (OTP Flow)
-    |--------------------------------------------------------------------------
-    */
-    Route::post('/otp/send', [AuthController::class, 'generateAndSendOtpPublic'])->name('otp.send.public');
-
-    /*
-    |--------------------------------------------------------------------------
-    | WEB ROUTES (with CSRF/Session)
-    |--------------------------------------------------------------------------
-    */
-    Route::middleware(['web'])->group(function () {
-        Route::post('/login', [AuthController::class, 'login'])->name('login');
-        Route::post('/register', [AuthController::class, 'register'])->name('register');
-        
         /*
-        |--------------------------------------------------------------------------
-        | PUBLIC OTP VERIFICATION ROUTES (no auth required)
-        |--------------------------------------------------------------------------
+        |--------------------------
+        | PROGRAMS
+        |--------------------------
         */
-        Route::post('/otp/verify', [AuthController::class, 'verifyOtpPublic'])->name('otp.verify.public');
-        Route::post('/register/verify', [AuthController::class, 'completeRegistration'])->name('register.verify');
-        
-        /*
-        |--------------------------------------------------------------------------
-        | SESSION AUTHENTICATED ROUTES
-        |--------------------------------------------------------------------------
-        */
-        Route::middleware(['auth'])->group(function () {
-            Route::get('/user', function (Request $request) {
-                return new UserResource($request->user());
-            })->name('user.current');
-            Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-            
-            /*
-            |--------------------------
-            | REPORTS
-            |--------------------------
-            */
-            Route::controller(ReportController::class)->group(function () {
-                Route::get('/reports', 'index')->name('reports.index');
-                Route::get('/reports/{report}', 'show')->name('reports.show');
-                Route::post('/reports', 'store')->name('reports.store');
-                Route::patch('/reports/{report}', 'update')->name('reports.update');
-                Route::delete('/reports/{report}', 'destroy')->name('reports.destroy');
-            });
-            
-            /*
-            |--------------------------
-            | USER STATS
-            |--------------------------
-            */
-            Route::get('/user/stats', [UserController::class, 'stats'])->name('user.stats');
-            
-            /*
-            |--------------------------
-            | PROGRAMS
-            |--------------------------
-            */
-            Route::get('/programs', function (ProgramService $service) {
-                return ProgramResource::collection(
-                        $service->listPrograms()
-                    );
-                })->name('programs.index');
+        Route::get('/programs', function (ProgramService $service) {
+            return ProgramResource::collection(
+                $service->listPrograms()
+            );
         });
+
     });
+
 });

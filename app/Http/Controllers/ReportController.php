@@ -16,7 +16,7 @@ class ReportController extends Controller
     {
         Gate::authorize('viewAny', Report::class);
 
-        $filters = $request->only(['search', 'severity']);
+        $filters = $request->only(['search', 'severity', 'ai_mode']);
         $perPage = $request->input('per_page', 15);
         $reports = $service->listReports($filters, $perPage);
 
