@@ -36,10 +36,11 @@ jobs:
       - name: Install Dependencies
         run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
 
+      - name: Create .env file
+        run: cp .env.example .env
+
       - name: Generate App Key
         run: php artisan key:generate --force
-        env:
-          APP_ENV: testing
 
       - name: Enable pgvector extension
         run: psql -h 127.0.0.1 -U postgres -d zeroday_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
@@ -47,21 +48,6 @@ jobs:
           PGPASSWORD: postgres
 
       - name: Run Pest Security Tests
-        env:
-          APP_ENV: testing
-          APP_KEY: ${{ secrets.APP_KEY }}
-          APP_URL: http://localhost
-          SANCTUM_STATEFUL_DOMAINS: localhost
-          DB_CONNECTION: pgsql
-          DB_HOST: 127.0.0.1
-          DB_PORT: 5432
-          DB_DATABASE: zeroday_test
-          DB_USERNAME: postgres
-          DB_PASSWORD: postgres
-          QUEUE_CONNECTION: sync
-          SESSION_DRIVER: array
-          CACHE_STORE: array
-          GEMINI_API_KEY: fake-key-for-testing
         run: php artisan test
 
   deploy:
