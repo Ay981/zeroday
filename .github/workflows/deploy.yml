@@ -5,9 +5,24 @@ on:
     branches: [ "main" ]
 
 jobs:
-  # --- STAGE 1: THE SECURITY AUDIT (TESTS) ---
   test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: zeroday_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -15,30 +30,32 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, dom, curl, libxml, sqlite3, pdo_sqlite
+          extensions: mbstring, dom, curl, libxml, pdo_pgsql, pgsql
           coverage: none
 
       - name: Install Dependencies
         run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
 
-      - name: Create Database for Tests
-        run: |
-          mkdir -p database
-          touch database/database.sqlite
+      - name: Enable pgvector extension
+        run: psql -h 127.0.0.1 -U postgres -d zeroday_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
+        env:
+          PGPASSWORD: postgres
 
       - name: Run Pest Security Tests
         env:
-          DB_CONNECTION: sqlite
-          DB_DATABASE: database/database.sqlite
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: zeroday_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
         run: php artisan test
 
-  # --- STAGE 2: AUTO-DEPLOY ---
   deploy:
     name: Deploy to Production
-    needs: test # <--- CRITICAL: Only deploy if tests pass!
+    needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-    
     steps:
       - name: Trigger Render Deploy Hook
         run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
