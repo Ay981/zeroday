@@ -12,6 +12,7 @@ return [
         'https://app.zeroday.test:5174', // only if you actually use :5174
         'http://localhost:5173',         // optional if you serve app via http localhost
         'http://localhost:5174',
+        'https://zeroday.aymenabdulkerim.dev/',
     ],
 
     'allowed_origins_patterns' => [],
