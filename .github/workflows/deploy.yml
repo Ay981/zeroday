@@ -8,13 +8,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    # --- STEP 1: SPIN UP A REAL POSTGRES + VECTOR ENGINE ---
     services:
       postgres:
-        image: pgvector/pgvector:pg17
+        image: ankane/pgvector:latest
         env:
           POSTGRES_DB: zeroday_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: password
         ports:
           - 5432:5432
         options: >-
@@ -30,17 +30,14 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, dom, curl, libxml, pdo_pgsql, pgsql
+          # CRITICAL: Ensure pdo_pgsql is installed in the runner
+          extensions: mbstring, dom, curl, libxml, pdo_pgsql 
           coverage: none
 
       - name: Install Dependencies
         run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
 
-      - name: Enable pgvector extension
-        run: psql -h 127.0.0.1 -U postgres -d zeroday_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
-        env:
-          PGPASSWORD: postgres
-
+      # --- STEP 2: RUN THE AUDIT AGAINST THE SERVICE CONTAINER ---
       - name: Run Pest Security Tests
         env:
           DB_CONNECTION: pgsql
@@ -48,7 +45,9 @@ jobs:
           DB_PORT: 5432
           DB_DATABASE: zeroday_test
           DB_USERNAME: postgres
-          DB_PASSWORD: postgres
+          DB_PASSWORD: password
+          # Ensure AI key check doesn't crash the test
+          GEMINI_API_KEY: "fake-key-for-testing" 
         run: php artisan test
 
   deploy:
