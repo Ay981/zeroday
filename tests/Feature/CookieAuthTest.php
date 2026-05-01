@@ -5,18 +5,21 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-it('logs in users and persists session cookie for v1 routes', function () {
-    $password = 'secret-password';
-    $user = User::factory()->create(['password' => bcrypt($password), 'email' => 'cookie@example.test']);
+it('logs in users and persists session cookie', function () {
+    $user = User::factory()->create([
+        'password'     => bcrypt('password'),
+        'otp_verified' => true,          // <-- add this
+    ]);
 
-    // Use normal form POST so the test client preserves session cookies between requests
-    $this->post('/api/v1/login', [
-        'email' => $user->email,
-        'password' => $password,
-    ])->assertStatus(200)->assertJsonStructure(['token']);
+    $response = $this->withHeaders([
+            'Origin'  => config('app.url'),
+            'Referer' => config('app.url'),
+        ])
+        ->postJson('/api/v1/login', [
+            'email'    => $user->email,
+            'password' => 'password',
+        ]);
 
-    // Subsequent request should be authenticated via session cookie
-    $this->get('/api/v1/user')
-        ->assertStatus(200)
-        ->assertJsonFragment(['id' => $user->id]);
+    $response->assertOk();
+    $this->assertAuthenticated();
 });

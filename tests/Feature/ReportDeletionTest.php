@@ -9,17 +9,7 @@ use Laravel\Sanctum\Sanctum;
 
 uses(RefreshDatabase::class);
 
-function testProgram(float $multiplier = 1.0): Program
-{
-    return Program::unguarded(function () use ($multiplier) {
-        return Program::create([
-            'name' => 'Test Program '.Str::upper(Str::random(4)),
-            'slug' => 'test-program-'.Str::lower(Str::random(8)),
-            'description' => 'Test program description',
-            'bounty_multiplier' => $multiplier,
-        ]);
-    });
-}
+
 
 it('denies guests from viewing the feed', function (): void {
     $this->getJson('/api/v1/reports')
@@ -98,6 +88,7 @@ it('prevents an admin from updating another users report', function (): void {
 });
 
 it('awards 100 points for a critical vulnerability', function () {
+        Queue::fake(); // <--- ADD THIS LINE
     $user = User::factory()->create(['reputation' => 0]);
     $program = testProgram(1.0);
 
@@ -114,6 +105,7 @@ it('awards 100 points for a critical vulnerability', function () {
 });
 
 it('multiplies points correctly for high-value programs', function () {
+        Queue::fake(); // <--- ADD THIS LINE
     $user = User::factory()->create(['reputation' => 0]);
     $program = testProgram(2.5);
 

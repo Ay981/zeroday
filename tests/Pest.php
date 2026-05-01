@@ -1,49 +1,50 @@
 <?php
 
 use Tests\TestCase;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Cache\RateLimiting\Limit;
 
 /*
 |--------------------------------------------------------------------------
 | Test Case
 |--------------------------------------------------------------------------
-|
-| The closure you provide to your test functions is always bound to a specific PHPUnit test
-| case class. By default, that class is "PHPUnit\Framework\TestCase". Of course, you may
-| need to change it using the "pest()" function to bind a different classes or traits.
-|
 */
-
-pest()->extend(TestCase::class)
- // ->use(Illuminate\Foundation\Testing\RefreshDatabase::class)
+pest()
+    ->extend(TestCase::class)
+    ->use(Illuminate\Foundation\Testing\RefreshDatabase::class)
     ->in('Feature');
+
+/*
+|--------------------------------------------------------------------------
+| Disable Rate Limiting for all tests
+|--------------------------------------------------------------------------
+*/
+pest()->beforeEach(function () {
+    foreach (['auth', 'api', 'uploads'] as $limiter) {
+        RateLimiter::for($limiter, fn () => Limit::none());
+    }
+})->in('Feature');
 
 /*
 |--------------------------------------------------------------------------
 | Expectations
 |--------------------------------------------------------------------------
-|
-| When you're writing tests, you often need to check that values meet certain conditions. The
-| "expect()" function gives you access to a set of "expectations" methods that you can use
-| to assert different things. Of course, you may extend the Expectation API at any time.
-|
 */
-
-expect()->extend('toBeOne', function () {
-    return $this->toBe(1);
-});
+expect()->extend('toBeOne', fn () => $this->toBe(1));
 
 /*
 |--------------------------------------------------------------------------
 | Functions
 |--------------------------------------------------------------------------
-|
-| While Pest is very powerful out-of-the-box, you may have some testing code specific to your
-| project that you don't want to repeat in every file. Here you can also expose helpers as
-| global functions to help you to reduce the number of lines of code in your test files.
-|
 */
-
-function something()
+function testProgram(float $multiplier = 1.0): \App\Models\Program
 {
-    // ..
+    return \App\Models\Program::unguarded(
+        fn () => \App\Models\Program::create([
+            'name'             => 'Test Program ' . \Illuminate\Support\Str::upper(\Illuminate\Support\Str::random(4)),
+            'slug'             => 'test-program-' . \Illuminate\Support\Str::lower(\Illuminate\Support\Str::random(8)),
+            'description'      => 'Test program description',
+            'bounty_multiplier' => $multiplier,
+        ])
+    );
 }
