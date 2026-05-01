@@ -32,44 +32,45 @@ class ReportService
             Log::warning('AI semantic search skipped because Gemini did not return an embedding.');
         }
 
-        return $query->latest()->filter($filters)->paginate(15);
+        return $query->orderUploadedFirst()->filter($filters)->paginate(15);
     }
 
     private function getGeminiEmbedding(string $text): array
-{
-    $apiKey = config('services.gemini.key');
+    {
+        $apiKey = config('services.gemini.key');
 
-    if (!$apiKey) {
-        Log::warning('Gemini API key missing');
-        return [];
+        if (! $apiKey) {
+            Log::warning('Gemini API key missing');
+
+            return [];
+        }
+
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key={$apiKey}";
+
+        $response = Http::timeout(30)
+            ->retry(3, 250)
+            ->acceptJson()
+            ->post($url, [
+                'content' => [
+                    'parts' => [
+                        [
+                            'text' => "task: search result | query: {$text}",
+                        ],
+                    ],
+                ],
+                'output_dimensionality' => 768,
+            ]);
+
+        if (! $response->successful()) {
+            Log::warning('Gemini embedding failed', [
+                'error' => $response->body(),
+            ]);
+
+            return [];
+        }
+
+        return $response->json('embedding.values') ?? [];
     }
-
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key={$apiKey}";
-
-    $response = Http::timeout(30)
-        ->retry(3, 250)
-        ->acceptJson()
-        ->post($url, [
-            'content' => [
-                'parts' => [
-                    [
-                        'text' => "task: search result | query: {$text}"
-                    ]
-                ]
-            ],
-            'output_dimensionality' => 768
-        ]);
-
-    if (!$response->successful()) {
-        Log::warning('Gemini embedding failed', [
-            'error' => $response->body(),
-        ]);
-
-        return [];
-    }
-
-    return $response->json('embedding.values') ?? [];
-}
 
     /**
      * Create: The Main Orchestrator

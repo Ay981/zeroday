@@ -1,0 +1,26 @@
+services:
+  # 1. The Laravel API Engine
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: zeroday-api
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env.docker
+    # API now only waits for Redis, not a local DB
+    depends_on:
+      - redis
+    networks:
+      - zeroday-network
+
+  # 2. The Waiting Room (Redis) - Keep this! You still need local queues/cache
+  redis:
+    image: redis:alpine
+    networks:
+      - zeroday-network
+
+networks:
+  zeroday-network:
+    driver: bridge
