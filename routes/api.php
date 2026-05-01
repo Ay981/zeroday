@@ -43,17 +43,15 @@ Route::prefix('v1')->group(function () {
     | Serve uploaded evidence images from the `public` disk. Stored files
     | are saved by `ReportService` to the `public` disk under `evidence/`.
     */
-    Route::get('/evidence/{filename}', function (string $filename) {
-        $path = 'evidence/' . $filename;
+  Route::get('/evidence/{filename}', function (string $filename) {
+    $path = 'evidence/' . $filename;
 
-        $disk = Storage::disk('public');
+    if (! Storage::disk('s3')->exists($path)) {
+        abort(404);
+    }
 
-        if (! $disk->exists($path)) {
-            abort(404);
-        }
-
-        return $disk->response($path);
-    });
+    return redirect(Storage::disk('s3')->url($path));
+});
 
     /*
     |--------------------------------------------------------------------------

@@ -116,27 +116,25 @@ class ReportService
     */
 
     private function handleFileUpload(array $data, ?string $oldFilePath = null): array
-    {
-        // Handle image removal
-        if (isset($data['remove_image']) && in_array($data['remove_image'], [true, 'true', 1, '1'])) {
-            if ($oldFilePath) {
-                Storage::disk('public')->delete($oldFilePath);
-            }
-            $data['evidence_image'] = null;
-            unset($data['remove_image']);
+{
+    // Handle image removal
+    if (isset($data['remove_image']) && in_array($data['remove_image'], [true, 'true', 1, '1'])) {
+        if ($oldFilePath) {
+            Storage::disk('s3')->delete($oldFilePath);
         }
-        // Handle new image upload
-        elseif (isset($data['evidence_image']) && $data['evidence_image'] instanceof UploadedFile) {
-            // Delete old file if updating
-            if ($oldFilePath) {
-                Storage::disk('public')->delete($oldFilePath);
-            }
-            // Replace the File object with the String path
-            $data['evidence_image'] = $data['evidence_image']->store('evidence', 'public');
-        }
-
-        return $data;
+        $data['evidence_image'] = null;
+        unset($data['remove_image']);
     }
+    // Handle new image upload
+    elseif (isset($data['evidence_image']) && $data['evidence_image'] instanceof UploadedFile) {
+        if ($oldFilePath) {
+            Storage::disk('s3')->delete($oldFilePath);
+        }
+        $data['evidence_image'] = $data['evidence_image']->store('evidence', 's3');
+    }
+
+    return $data;
+}
 
     private function storeReportRecord(User $user, array $data): Report
     {
