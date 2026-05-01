@@ -63,14 +63,18 @@ Route::prefix('v1')->group(function () {
         | EVIDENCE IMAGE PROXY
         |--------------------------
         */
-        Route::get('/evidence/{filename}', function (string $filename) {
-            $path = 'evidence/'.$filename;
+     Route::get('/evidence/{filename}', function (string $filename) {
+    $path = 'evidence/' . $filename;
 
-            if (! Storage::disk('public')->exists($path)) {
-                abort(404);
-            }
+    // Change 'public' to whatever disk you upload to
+    $disk = Storage::disk(config('filesystems.default'));
 
-            return Storage::disk('public')->response($path);
+    if (! $disk->exists($path)) {
+        abort(404);
+    }
+
+    return $disk->response($path);
+    
         });
 
         /*
