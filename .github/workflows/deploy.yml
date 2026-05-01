@@ -1,0 +1,44 @@
+name: ZeroDay Nexus CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  # --- STAGE 1: THE SECURITY AUDIT (TESTS) ---
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, dom, curl, libxml, sqlite3, pdo_sqlite
+          coverage: none
+
+      - name: Install Dependencies
+        run: composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
+
+      - name: Create Database for Tests
+        run: |
+          mkdir -p database
+          touch database/database.sqlite
+
+      - name: Run Pest Security Tests
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: database/database.sqlite
+        run: php artisan test
+
+  # --- STAGE 2: AUTO-DEPLOY ---
+  deploy:
+    name: Deploy to Production
+    needs: test # <--- CRITICAL: Only deploy if tests pass!
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Trigger Render Deploy Hook
+        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
