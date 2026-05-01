@@ -48,6 +48,15 @@ jobs:
           PGPASSWORD: postgres
 
       - name: Run Pest Security Tests
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: zeroday_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          QUEUE_CONNECTION: sync
+          GEMINI_API_KEY: fake-key-for-testing
         run: php artisan test
 
   deploy:
