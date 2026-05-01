@@ -1,4 +1,5 @@
 <?php
+
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -10,15 +11,19 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->append(\App\Http\Middleware\TrustProxies::class);
-        $middleware->append(\Illuminate\Http\Middleware\HandleCors::class);
+    ->withMiddleware(function (Middleware $middleware) {
+        // 1. ELITE MOVE: Trust ALL proxies for Render/Vercel
+        // This ensures Laravel knows the request is HTTPS even when coming from a load balancer.
+        $middleware->trustProxies(at: '*');
 
-        // ✅ THIS is what adds StartSession + EnsureFrontendRequestsAreStateful to API routes
+        // 2. DO NOT manually append HandleCors. 
+        // Laravel 11/12/13 includes it by default. 
+        // Manually appending can cause it to run in the wrong order.
+
+        // 3. Enable SPA Cookie Auth
         $middleware->statefulApi();
 
-        // ✅ CSRF exceptions are now unnecessary for API routes since statefulApi handles it
-        // but keep them if you want to be explicit
+        // 4. CSRF Exceptions
         $middleware->validateCsrfTokens(except: [
             'api/v1/login',
             'api/v1/register',
@@ -27,6 +32,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'api/v1/register/verify',
         ]);
     })
-    ->withExceptions(function (Exceptions $exceptions): void {
+    ->withExceptions(function (Exceptions $exceptions) {
         //
     })->create();
