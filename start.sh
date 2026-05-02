@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Start the background worker
-php artisan queue:work redis --tries=3 --timeout=90 &
+php artisan queue:work redis --tries=3 --timeout=60 &
 
 # Ensure public storage files are web-accessible
 php artisan storage:link --force >/dev/null 2>&1 || true
