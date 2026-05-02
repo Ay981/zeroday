@@ -12,7 +12,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Redis;
-use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -51,11 +50,9 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
             'otp'      => $otp,
             'attempts' => 0,
-            'last_sent' => time(),
         ]));
 
         Mail::to($email)->queue(new OtpMail($otp));
-        Log::info('OTP queued (register)', ['email' => $email]);
 
         return response()->json([
             'message' => 'OTP sent to your email. Valid for 10 minutes.',
@@ -207,26 +204,14 @@ class AuthController extends Controller
 
         $otp = $this->generateOtp();
 
-        $now = time();
-        $lastSent = $pending['last_sent'] ?? 0;
-
-        // Throttle accidental duplicate sends (e.g., double-clicks or duplicate XHRs)
-        if ($now - $lastSent < 5) {
-            return response()->json([
-                'message' => 'OTP recently sent. Please wait a few seconds before requesting again.',
-            ], 429);
-        }
-
         $pending['otp']      = $otp;
         $pending['attempts'] = 0; // Reset attempts on resend
-        $pending['last_sent'] = $now;
 
         // Preserve remaining TTL — do not give extra time on resend
         $ttl = max((int) Redis::ttl($key), 1);
         Redis::setex($key, $ttl, json_encode($pending));
 
         Mail::to($email)->queue(new OtpMail($otp));
-        Log::info('OTP queued (resend)', ['email' => $email]);
 
         return response()->json([
             'message' => 'A new OTP has been sent to your email.',

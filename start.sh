@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
 
-set -e
-
-# Start the background worker using the configured queue connection.
-# This avoids hardcoding Redis when the app is configured to use another driver.
-QUEUE_CONNECTION="${QUEUE_CONNECTION:-database}"
-php artisan queue:work "$QUEUE_CONNECTION" --tries=3 --timeout=90 &
+# Start the background worker
+php artisan queue:work redis --tries=3 --timeout=90 &
 
 # Ensure public storage files are web-accessible
 php artisan storage:link --force >/dev/null 2>&1 || true
